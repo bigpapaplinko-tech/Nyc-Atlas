@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NYC Atlas</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+:root{
+  --bg:#0b0e14;--surface:#131820;--panel:#171e29;--panel2:#1c2435;--border:#232d3f;
+  --accent:#c8922a;--accent-lt:#e8aa48;
+  --text:#ede9df;--muted:#7a8494;--dim:#3e4a5c;
+  --r:10px;
+  --food:#4a9668;--cafe:#8b6f47;--bar:#7a4fa0;
+  --attraction:#3a7bc8;--shopping:#b85070;--other:#5a7a8a;
+  --pending:#e07b3a;--success:#4a9668;--danger:#c0404a;
+  --reviewer:#2a8a8a;
+}
+body{display:flex;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text)}
+
+/* SIDEBAR */
+#sidebar{width:300px;flex-shrink:0;height:100vh;overflow:hidden;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:20;transition:margin-left .3s cubic-bezier(.4,0,.2,1)}
+#sidebar.hidden{margin-left:-300px}
+#sh{padding:18px 18px 0;border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+.logo-pin{width:22px;height:22px;background:var(--accent);border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-pin::after{content:'';width:8px;height:8px;background:var(--panel);border-radius:50%;transform:rotate(45deg)}
+.logo-title{font-family:'DM Serif Display',serif;font-size:18px;color:var(--text)}
+.logo-sub{font-size:10px;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px}
+.tabs{display:flex;gap:4px;padding-bottom:14px}
+.tab{flex:1;padding:7px 4px;font-size:11.5px;font-weight:500;font-family:'DM Sans',sans-serif;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;text-align:center}
+.tab.active{background:var(--accent);border-color:var(--accent);color:#0b0e14}
+.tab .bdg{display:inline-block;background:var(--danger);color:#fff;border-radius:8px;font-size:9px;padding:1px 5px;margin-left:3px;vertical-align:middle}
+
+/* Search / filter */
+#search-wrap{padding:12px 14px 8px}
+.search-input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px 8px 34px;color:var(--text);font-size:12.5px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237a8494' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:11px center}
+.search-input:focus{border-color:var(--accent)}
+.search-input::placeholder{color:var(--dim)}
+.filter-row{display:flex;gap:5px;flex-wrap:wrap;padding:0 14px 10px}
+.chip{font-size:10.5px;padding:4px 9px;border-radius:20px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;transition:all .15s;white-space:nowrap}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip.on{border-color:transparent;color:#fff}
+.chip[data-c="all"].on{background:var(--accent)}
+.chip[data-c="food"].on{background:var(--food)}
+.chip[data-c="cafe"].on{background:var(--cafe)}
+.chip[data-c="bar"].on{background:var(--bar)}
+.chip[data-c="attraction"].on{background:var(--attraction)}
+.chip[data-c="shopping"].on{background:var(--shopping)}
+
+/* Cards */
+#loc-list{flex:1;overflow-y:auto;padding:6px 10px}
+#loc-list::-webkit-scrollbar{width:3px}
+#loc-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:7px;cursor:pointer;transition:border-color .18s,transform .12s;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+.card[data-c="food"]::before{background:var(--food)}
+.card[data-c="cafe"]::before{background:var(--cafe)}
+.card[data-c="bar"]::before{background:var(--bar)}
+.card[data-c="attraction"]::before{background:var(--attraction)}
+.card[data-c="shopping"]::before{background:var(--shopping)}
+.card[data-c="other"]::before{background:var(--other)}
+.card[data-c="pending"]::before{background:var(--pending)}
+.card:hover{border-color:var(--accent);transform:translateX(2px)}
+.card.sel{border-color:var(--accent);background:var(--panel2)}
+.cn{font-family:'DM Serif Display',serif;font-size:14px;line-height:1.3}
+.ct{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;margin-bottom:4px}
+.cc{font-size:11px;font-weight:500;color:var(--accent);white-space:nowrap}
+.cm{display:flex;align-items:center;gap:5px;margin-bottom:4px;flex-wrap:wrap}
+.badge{font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;padding:2px 7px;border-radius:10px;font-weight:500;white-space:nowrap}
+.badge.food{background:rgba(74,150,104,.15);color:#6ec98a}
+.badge.cafe{background:rgba(139,111,71,.15);color:#c49a65}
+.badge.bar{background:rgba(122,79,160,.15);color:#a97bd0}
+.badge.attraction{background:rgba(58,123,200,.15);color:#6fa3e0}
+.badge.shopping{background:rgba(184,80,112,.15);color:#d97090}
+.badge.other{background:rgba(90,122,138,.15);color:#7fa8ba}
+.badge.pending{background:rgba(224,123,58,.15);color:#e8954a}
+.badge.reviewer{background:rgba(42,138,138,.15);color:#4ababa}
+.badge.nom{background:rgba(200,146,42,.12);color:#c8922a;border:1px solid rgba(200,146,42,.25);font-size:9px;padding:2px 6px}
+.cr{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ca{display:flex;gap:5px;margin-top:9px;flex-wrap:wrap}
+.cbtn{font-size:10.5px;padding:3px 9px;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;transition:all .15s;display:inline-flex;align-items:center;gap:4px;text-decoration:none}
+.cbtn:hover{border-color:var(--accent);color:var(--accent)}
+.cbtn.ok:hover{border-color:var(--success);color:var(--success)}
+.cbtn.del:hover{border-color:var(--danger);color:var(--danger)}
+.cbtn.rev{border-color:rgba(42,138,138,.4);color:#4ababa}
+.cbtn.rev:hover{border-color:#4ababa;color:#4ababa}
+.pub-rating{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:11px;color:var(--muted)}
+.pub-stars{color:#e8aa48;letter-spacing:.5px;font-size:12px}
+.nom-list{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.submitter{font-size:10px;color:var(--dim);margin-top:2px}
+.empty{text-align:center;padding:50px 16px;color:var(--dim);font-size:12.5px;line-height:1.7}
+.empty-title{font-family:'DM Serif Display',serif;font-size:17px;color:var(--muted);margin-bottom:5px}
+
+/* Bottom */
+#sb-bottom{padding:10px;flex-shrink:0}
+.big-btn{width:100%;background:var(--accent);border:none;border-radius:var(--r);color:#0b0e14;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;padding:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:background .15s,transform .1s}
+.big-btn:hover{background:var(--accent-lt)}
+.big-btn:active{transform:scale(.98)}
+
+/* Admin */
+.admin-banner{background:rgba(200,146,42,.08);border-bottom:1px solid rgba(200,146,42,.2);padding:9px 14px;font-size:11px;color:var(--accent);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+#admin-list::-webkit-scrollbar,#user-list::-webkit-scrollbar{width:3px}
+#admin-list::-webkit-scrollbar-thumb,#user-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* MAP */
+#map-wrap{flex:1;position:relative;height:100vh}
+#map{position:absolute;inset:0;background:#0b0e14}
+#tog{position:absolute;top:14px;left:14px;z-index:800;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:7px 9px;cursor:pointer;color:var(--muted);display:flex;align-items:center;transition:all .15s}
+#tog:hover{border-color:var(--accent);color:var(--accent)}
+#suggest-fab{position:absolute;bottom:30px;right:20px;z-index:800;background:var(--accent);border:none;border-radius:28px;color:#0b0e14;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;padding:11px 20px;cursor:pointer;display:flex;align-items:center;gap:7px;box-shadow:0 4px 22px rgba(200,146,42,.4);transition:background .15s,transform .1s}
+#suggest-fab:hover{background:var(--accent-lt)}
+#suggest-fab:active{transform:scale(.97)}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:1000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .22s;backdrop-filter:blur(5px)}
+.overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:14px;width:500px;max-width:calc(100vw - 28px);max-height:92vh;overflow-y:auto;transform:translateY(18px) scale(.97);transition:transform .22s cubic-bezier(.4,0,.2,1);padding:26px}
+.overlay.open .modal{transform:none}
+.modal::-webkit-scrollbar{width:3px}
+.modal::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.mh{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.mt{font-family:'DM Serif Display',serif;font-size:20px}
+.mx{background:transparent;border:1px solid var(--border);border-radius:6px;padding:5px;cursor:pointer;color:var(--muted);display:flex;transition:all .15s}
+.mx:hover{border-color:var(--muted);color:var(--text)}
+.suggest-note{background:rgba(224,123,58,.1);border:1px solid rgba(224,123,58,.2);border-radius:8px;padding:10px 13px;font-size:12px;color:#e8954a;margin-bottom:16px;line-height:1.5}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fi{display:flex;flex-direction:column;gap:5px}
+.fi.full{grid-column:1/-1}
+.fi label{font-size:11px;font-weight:500;color:var(--muted);letter-spacing:.3px;text-transform:uppercase}
+.fi input,.fi textarea,.fi select{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:12.5px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;width:100%}
+.fi input:focus,.fi textarea:focus,.fi select:focus{border-color:var(--accent)}
+.fi input::placeholder,.fi textarea::placeholder{color:var(--dim)}
+.fi select option{background:var(--surface)}
+.fi textarea{resize:vertical;min-height:72px;line-height:1.55}
+.cost-row{display:flex;gap:5px;flex-wrap:wrap}
+.cost-btn{flex:1;min-width:60px;padding:8px 4px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--muted);font-size:11px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .14s;text-align:center;white-space:nowrap}
+.cost-btn:hover{border-color:var(--accent);color:var(--accent)}
+.cost-btn.on{background:var(--accent);border-color:var(--accent);color:#0b0e14}
+.hint{font-size:10.5px;color:var(--dim);margin-top:3px}
+.stars-input{display:flex;gap:3px;flex-direction:row-reverse;justify-content:flex-end}
+.stars-input input{display:none}
+.stars-input label{font-size:26px;color:var(--dim);cursor:pointer;transition:color .1s;line-height:1;user-select:none}
+.stars-input label:hover,.stars-input label:hover~label,.stars-input input:checked~label{color:#e8aa48}
+.star-display{font-size:12px;letter-spacing:1px}
+.star-display .s-on{color:#e8aa48}
+.star-display .s-off{color:var(--dim)}
+.submit-btn{margin-top:18px;width:100%;background:var(--accent);border:none;border-radius:var(--r);color:#0b0e14;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;padding:12px;cursor:pointer;transition:background .15s}
+.submit-btn:hover{background:var(--accent-lt)}
+.submit-btn:disabled{opacity:.5;cursor:not-allowed}
+.form-footer{font-size:11px;color:var(--muted);margin-top:8px;text-align:center;line-height:1.5}
+
+/* Nomination checkboxes */
+.nom-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+.nom-option{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 11px;cursor:pointer;transition:border-color .15s}
+.nom-option:hover{border-color:var(--accent)}
+.nom-option input{display:none}
+.nom-option.checked{border-color:var(--accent);background:rgba(200,146,42,.08)}
+.nom-option-label{font-size:11.5px;color:var(--muted);line-height:1.3}
+.nom-option.checked .nom-option-label{color:var(--accent)}
+.nom-tick{width:14px;height:14px;border-radius:4px;border:1px solid var(--border);flex-shrink:0;transition:all .15s;display:flex;align-items:center;justify-content:center;font-size:9px}
+.nom-option.checked .nom-tick{background:var(--accent);border-color:var(--accent);color:#0b0e14}
+
+/* Public review section */
+.reviews-section{margin-top:12px;border-top:1px solid var(--border);padding-top:10px}
+.reviews-title{font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px}
+.review-item{background:var(--surface);border-radius:8px;padding:9px 11px;margin-bottom:6px;border:1px solid var(--border)}
+.review-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.review-author{font-size:11px;font-weight:500;color:var(--text)}
+.review-stars{font-size:11px;color:#e8aa48}
+.review-text{font-size:11.5px;color:var(--muted);line-height:1.5}
+.review-date{font-size:10px;color:var(--dim);margin-top:3px}
+.my-review-note{font-size:11px;color:var(--dim);font-style:italic;margin-top:2px}
+
+/* Popup */
+.leaflet-popup-content-wrapper{background:var(--panel)!important;border:1px solid var(--border)!important;border-radius:10px!important;box-shadow:0 8px 28px rgba(0,0,0,.6)!important}
+.leaflet-popup-tip{background:var(--panel)!important}
+.leaflet-popup-content{margin:13px 15px!important;font-family:'DM Sans',sans-serif;color:var(--text)}
+.pn{font-family:'DM Serif Display',serif;font-size:15px;margin-bottom:5px}
+.pm{display:flex;align-items:center;gap:7px;margin-bottom:5px;flex-wrap:wrap}
+.pc{font-size:11px;color:var(--accent);font-weight:500}
+.pr{font-size:11.5px;color:var(--muted);line-height:1.5;margin-bottom:5px}
+.pl{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--accent);text-decoration:none;border:1px solid rgba(200,146,42,.3);border-radius:6px;padding:3px 8px;transition:background .14s}
+.pl:hover{background:rgba(200,146,42,.1)}
+
+
+/* Stats tab */
+.stats-section{margin-bottom:18px}
+.stats-heading{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding:0 2px}
+.stats-icon{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s}
+.stat-card:hover{border-color:var(--accent)}
+.stat-rank{font-family:'DM Serif Display',serif;font-size:16px;color:var(--dim);min-width:20px;text-align:center;flex-shrink:0}
+.stat-info{flex:1;min-width:0}
+.stat-name{font-family:'DM Serif Display',serif;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat-meta{font-size:10.5px;color:var(--muted);margin-top:2px}
+.stat-val{font-size:13px;font-weight:500;color:var(--accent);white-space:nowrap;flex-shrink:0}
+/* Marker */
+.mk{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid rgba(255,255,255,.18);box-shadow:0 2px 10px rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center}
+.mk-i{width:11px;height:11px;border-radius:50%;background:rgba(255,255,255,.85);transform:rotate(45deg)}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" style="position:fixed;inset:0;background:#0b0e14;z-index:9000;display:flex;align-items:center;justify-content:center">
+  <div style="width:360px;max-width:calc(100vw - 32px)">
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="display:inline-flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="width:26px;height:26px;background:#c8922a;border-radius:50% 50% 50% 0;transform:rotate(-45deg)"></div>
+        <span style="font-family:'DM Serif Display',serif;font-size:28px;color:#ede9df">NYC Atlas</span>
+      </div>
+      <p style="font-size:11px;color:#7a8494;letter-spacing:1.5px;text-transform:uppercase">Professional City Guide</p>
+    </div>
+    <div style="background:#171e29;border:1px solid #232d3f;border-radius:14px;padding:28px">
+      <div style="display:flex;gap:6px;margin-bottom:22px">
+        <button class="ltab" data-lt="signin" onclick="switchLoginTab('signin',this)" style="flex:1;padding:8px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;border:1px solid #c8922a;border-radius:7px;background:#c8922a;color:#0b0e14;cursor:pointer;transition:all .15s">Sign In</button>
+        <button class="ltab" data-lt="register" onclick="switchLoginTab('register',this)" style="flex:1;padding:8px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;border:1px solid #232d3f;border-radius:7px;background:transparent;color:#7a8494;cursor:pointer;transition:all .15s">Register</button>
+      </div>
+      <div id="lt-signin">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <label style="font-size:11px;font-weight:500;color:#7a8494;letter-spacing:.3px;text-transform:uppercase">Username</label>
+            <input id="li-user" type="text" placeholder="Enter username" autocomplete="username" style="background:#131820;border:1px solid #232d3f;border-radius:8px;padding:10px 13px;color:#ede9df;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;width:100%;" onfocus="this.style.borderColor='#c8922a'" onblur="this.style.borderColor='#232d3f'" onkeydown="if(event.key==='Enter')document.getElementById('li-pass').focus()">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <label style="font-size:11px;font-weight:500;color:#7a8494;letter-spacing:.3px;text-transform:uppercase">Password</label>
+            <input id="li-pass" type="password" placeholder="Enter password" autocomplete="current-password" style="background:#131820;border:1px solid #232d3f;border-radius:8px;padding:10px 13px;color:#ede9df;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;width:100%;" onfocus="this.style.borderColor='#c8922a'" onblur="this.style.borderColor='#232d3f'" onkeydown="if(event.key==='Enter')doSignIn()">
+          </div>
+          <p id="li-err" style="font-size:11px;color:#c0404a;min-height:14px;margin-top:-4px"></p>
+          <button onclick="doSignIn()" style="background:#c8922a;border:none;border-radius:8px;color:#0b0e14;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;padding:12px;cursor:pointer;width:100%">Sign In</button>
+        </div>
+        <p style="font-size:11px;color:#3e4a5c;text-align:center;margin-top:14px;line-height:1.7">Demo: <strong style="color:#7a8494">admin / atlas2024</strong> &nbsp;·&nbsp; <strong style="color:#7a8494">guest / guest123</strong></p>
+      </div>
+      <div id="lt-register" style="display:none">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <label style="font-size:11px;font-weight:500;color:#7a8494;letter-spacing:.3px;text-transform:uppercase">Full Name</label>
+            <input id="reg-name" type="text" placeholder="Your display name" style="background:#131820;border:1px solid #232d3f;border-radius:8px;padding:10px 13px;color:#ede9df;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;width:100%;" onfocus="this.style.borderColor='#c8922a'" onblur="this.style.borderColor='#232d3f'">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <label style="font-size:11px;font-weight:500;color:#7a8494;letter-spacing:.3px;text-transform:uppercase">Username</label>
+            <input id="reg-user" type="text" placeholder="Choose a username" style="background:#131820;border:1px solid #232d3f;border-radius:8px;padding:10px 13px;color:#ede9df;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;width:100%;" onfocus="this.style.borderColor='#c8922a'" onblur="this.style.borderColor='#232d3f'">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <label style="font-size:11px;font-weight:500;color:#7a8494;letter-spacing:.3px;text-transform:uppercase">Password</label>
+            <input id="reg-pass" type="password" placeholder="Min. 6 characters" style="background:#131820;border:1px solid #232d3f;border-radius:8px;padding:10px 13px;color:#ede9df;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;width:100%;" onfocus="this.style.borderColor='#c8922a'" onblur="this.style.borderColor='#232d3f'" onkeydown="if(event.key==='Enter')doRegister()">
+          </div>
+          <p id="reg-err" style="font-size:11px;color:#c0404a;min-height:14px;margin-top:-4px"></p>
+          <button onclick="doRegister()" style="background:#c8922a;border:none;border-radius:8px;color:#0b0e14;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;padding:12px;cursor:pointer;width:100%">Create Account</button>
+        </div>
+        <p style="font-size:11px;color:#3e4a5c;text-align:center;margin-top:14px;line-height:1.6">New accounts get viewer access. Reviewers can nominate places.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div id="sh">
+    <div class="logo">
+      <div class="logo-pin"></div>
+      <div style="display:flex;flex-direction:column;line-height:1;flex:1">
+        <span class="logo-title">NYC Atlas</span>
+        <span class="logo-sub">City Guide</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:7px">
+        <div id="user-avatar" style="width:30px;height:30px;border-radius:50%;background:#232d3f;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:var(--accent);flex-shrink:0;cursor:default"></div>
+        <button onclick="doLogout()" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 7px;cursor:pointer;color:var(--muted);font-size:10px;font-family:'DM Sans',sans-serif;transition:all .15s;white-space:nowrap" onmouseover="this.style.color='#c0404a';this.style.borderColor='#c0404a'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">Sign out</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="map" onclick="switchTab('map')">Map</button>
+      <button class="tab" data-tab="stats" onclick="switchTab('stats')">Stats</button>
+      <button class="tab" data-tab="admin" onclick="switchTab('admin')" id="admin-tab-btn" style="display:none">Admin <span class="bdg" id="pb" style="display:none">0</span></button>
+    </div>
+  </div>
+
+  <!-- MAP TAB -->
+  <div id="tab-map" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+    <div id="search-wrap">
+      <input class="search-input" id="search" placeholder="Search places…" oninput="renderList()">
+    </div>
+    <div class="filter-row">
+      <button class="chip on" data-c="all" onclick="setFilter('all',this)">All</button>
+      <button class="chip" data-c="food" onclick="setFilter('food',this)">Food</button>
+      <button class="chip" data-c="cafe" onclick="setFilter('cafe',this)">Cafe</button>
+      <button class="chip" data-c="bar" onclick="setFilter('bar',this)">Bar</button>
+      <button class="chip" data-c="attraction" onclick="setFilter('attraction',this)">Culture</button>
+      <button class="chip" data-c="shopping" onclick="setFilter('shopping',this)">Shopping</button>
+    </div>
+    <div id="loc-list"></div>
+    <div id="sb-bottom">
+      <div id="admin-add-btn" style="display:none">
+        <button class="big-btn" onclick="openModal('add')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Location
+        </button>
+      </div>
+      <div id="guest-hint" style="padding:5px 2px;font-size:11px;color:var(--dim);text-align:center;line-height:1.6">
+        Use <strong style="color:var(--muted)">Suggest a Place</strong> on the map to submit a location.
+      </div>
+    </div>
+  </div>
+
+
+  <!-- STATS TAB -->
+  <div id="tab-stats" style="display:none;flex:1;flex-direction:column;overflow-y:auto;padding:10px">
+
+    <!-- Admin Recommended -->
+    <div class="stats-section">
+      <div class="stats-heading">
+        <span class="stats-icon" style="background:rgba(200,146,42,.15);color:#c8922a">✦</span>
+        <span>Admin Recommended</span>
+      </div>
+      <div id="stat-recommended"></div>
+    </div>
+
+    <!-- Highest Rated -->
+    <div class="stats-section">
+      <div class="stats-heading">
+        <span class="stats-icon" style="background:rgba(232,170,72,.15);color:#e8aa48">★</span>
+        <span>Highest Rated</span>
+      </div>
+      <div id="stat-top-rated"></div>
+    </div>
+
+    <!-- Newest Places -->
+    <div class="stats-section">
+      <div class="stats-heading">
+        <span class="stats-icon" style="background:rgba(58,123,200,.15);color:#6fa3e0">+</span>
+        <span>Newest Places</span>
+      </div>
+      <div id="stat-newest"></div>
+    </div>
+
+    <!-- Nomination Awards -->
+    <div class="stats-section">
+      <div class="stats-heading">
+        <span class="stats-icon" style="background:rgba(122,79,160,.15);color:#a97bd0">◈</span>
+        <span>Nomination Awards</span>
+      </div>
+      <div id="stat-nominations"></div>
+    </div>
+
+  </div>
+
+  <!-- ADMIN TAB -->
+  <div id="tab-admin" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+    <div id="admin-lock" style="padding:40px 20px;text-align:center">
+      <p style="font-size:28px;margin-bottom:12px">🔒</p>
+      <p style="font-family:'DM Serif Display',serif;font-size:14px;color:var(--muted);margin-bottom:8px">Admin Access Only</p>
+      <p style="font-size:12px;color:var(--dim);line-height:1.7">You are signed in as a regular user.<br>Log in with an admin account to access this panel.</p>
+      <input type="password" id="pw-input" style="display:none"><p id="pw-err" style="display:none"></p>
+    </div>
+    <div id="admin-panel" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+      <div class="admin-banner">
+        <span>⚙ Admin Panel</span>
+        <button onclick="doLogout()" style="background:transparent;border:none;color:var(--muted);font-size:10.5px;cursor:pointer;font-family:'DM Sans',sans-serif" onmouseover="this.style.color='#c0404a'" onmouseout="this.style.color='var(--muted)'">Sign out</button>
+      </div>
+      <div style="display:flex;gap:4px;padding:10px 10px 0;flex-shrink:0">
+        <button class="atab" data-at="submissions" onclick="switchAdminTab('submissions',this)" style="flex:1;padding:6px 4px;font-size:11px;font-weight:500;font-family:'DM Sans',sans-serif;border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:#0b0e14;cursor:pointer;transition:all .15s;text-align:center">Submissions <span id="sub-count" style="display:none;background:rgba(0,0,0,.2);border-radius:8px;font-size:9px;padding:1px 5px;margin-left:2px">0</span></button>
+        <button class="atab" data-at="users" onclick="switchAdminTab('users',this)" style="flex:1;padding:6px 4px;font-size:11px;font-weight:500;font-family:'DM Sans',sans-serif;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;text-align:center">Users</button>
+      </div>
+      <div id="admin-submissions" style="flex:1;overflow-y:auto"><div id="admin-list" style="padding:8px 10px"></div></div>
+      <div id="admin-users" style="display:none;flex:1;overflow-y:auto;padding:8px 10px"><div id="user-list"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAP -->
+<div id="map-wrap">
+  <button id="tog" onclick="document.getElementById('sidebar').classList.toggle('hidden');setTimeout(()=>map.invalidateSize(),310)">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div id="map"></div>
+  <button id="suggest-fab" onclick="openModal('suggest')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Suggest a Place
+  </button>
+</div>
+
+<!-- ADD / EDIT / SUGGEST MODAL -->
+<div class="overlay" id="ov1">
+  <div class="modal">
+    <div class="mh">
+      <span class="mt" id="modal-title">Add Location</span>
+      <button class="mx" onclick="closeModal('ov1')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div id="suggest-notice" class="suggest-note" style="display:none">✦ Your suggestion will be reviewed by an admin before appearing on the map.</div>
+    <div class="fg">
+      <div class="fi full" id="submitter-wrap">
+        <label>Your Name</label>
+        <input id="f-submitter" placeholder="e.g. Jane Smith">
+      </div>
+      <div class="fi full">
+        <label>Place Name</label>
+        <input id="f-name" placeholder="e.g. Russ & Daughters">
+      </div>
+      <div class="fi">
+        <label>Category</label>
+        <select id="f-cat">
+          <option value="food">🍽 Restaurant / Food</option>
+          <option value="cafe">☕ Cafe / Coffee</option>
+          <option value="bar">🍸 Bar / Nightlife</option>
+          <option value="attraction">🏛 Culture / Attraction</option>
+          <option value="shopping">🛍 Shopping</option>
+          <option value="other">📍 Other</option>
+        </select>
+      </div>
+      <div class="fi">
+        <label>Price Range</label>
+        <div class="cost-row">
+          <button class="cost-btn" data-cost="0-10">$0–$10</button>
+          <button class="cost-btn" data-cost="10-50">$10–$50</button>
+          <button class="cost-btn" data-cost="50-100">$50–$100</button>
+          <button class="cost-btn" data-cost="100+">$100+</button>
+        </div>
+      </div>
+      <div class="fi full">
+        <label>Address</label>
+        <input id="f-address" placeholder="e.g. 179 E Houston St, New York, NY">
+        <span class="hint">Auto-geocoded to pin on the map</span>
+      </div>
+      <div class="fi full">
+        <label>Google Maps URL</label>
+        <input id="f-maps" placeholder="https://maps.google.com/…">
+      </div>
+      <div class="fi full">
+        <label>Star Rating</label>
+        <div class="stars-input" id="stars-input">
+          <input type="radio" name="rating" id="s5" value="5"><label for="s5">★</label>
+          <input type="radio" name="rating" id="s4" value="4"><label for="s4">★</label>
+          <input type="radio" name="rating" id="s3" value="3"><label for="s3">★</label>
+          <input type="radio" name="rating" id="s2" value="2"><label for="s2">★</label>
+          <input type="radio" name="rating" id="s1" value="1"><label for="s1">★</label>
+        </div>
+      </div>
+      <div class="fi full">
+        <label>Review</label>
+        <textarea id="f-review" placeholder="What makes it worth visiting? Standout dishes, vibe, must-orders…"></textarea>
+      </div>
+      <div class="fi full">
+        <label>Additional Notes</label>
+        <textarea id="f-notes" placeholder="Reservations needed? Best time to visit? Insider tips…"></textarea>
+      </div>
+    </div>
+    <button class="submit-btn" id="save-btn" onclick="saveLocation()">Save Location</button>
+    <p class="form-footer" id="form-footer"></p>
+  </div>
+</div>
+
+<!-- PUBLIC REVIEW MODAL -->
+<div class="overlay" id="ov-review">
+  <div class="modal" style="max-width:420px">
+    <div class="mh">
+      <span class="mt" id="review-modal-title">Leave a Review</span>
+      <button class="mx" onclick="closeModal('ov-review')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div style="margin-bottom:16px">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Rate this place out of 5 stars. You can only submit one review per location.</p>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:14px">
+        <label style="font-size:11px;font-weight:500;color:var(--muted);letter-spacing:.3px;text-transform:uppercase">Your Rating</label>
+        <div class="stars-input" id="pub-stars-input">
+          <input type="radio" name="pub-rating" id="ps5" value="5"><label for="ps5">★</label>
+          <input type="radio" name="pub-rating" id="ps4" value="4"><label for="ps4">★</label>
+          <input type="radio" name="pub-rating" id="ps3" value="3"><label for="ps3">★</label>
+          <input type="radio" name="pub-rating" id="ps2" value="2"><label for="ps2">★</label>
+          <input type="radio" name="pub-rating" id="ps1" value="1"><label for="ps1">★</label>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <label style="font-size:11px;font-weight:500;color:var(--muted);letter-spacing:.3px;text-transform:uppercase">Your Review <span style="color:var(--dim);text-transform:none;font-size:10px">(optional)</span></label>
+        <textarea id="pub-review-text" placeholder="Share your experience…" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:12.5px;font-family:'DM Sans',sans-serif;outline:none;min-height:80px;width:100%;resize:vertical;line-height:1.55" onfocus="this.style.borderColor='#c8922a'" onblur="this.style.borderColor='var(--border)'"></textarea>
+      </div>
+      <div id="existing-review-note" style="display:none;margin-top:10px;font-size:11px;color:var(--accent);background:rgba(200,146,42,.08);border-radius:8px;padding:8px 11px;border:1px solid rgba(200,146,42,.2)">You already reviewed this place — submitting will update your review.</div>
+    </div>
+    <button class="submit-btn" onclick="submitPublicReview()">Submit Review</button>
+  </div>
+</div>
+
+<!-- NOMINATE MODAL -->
+<div class="overlay" id="ov-nominate">
+  <div class="modal" style="max-width:440px">
+    <div class="mh">
+      <span class="mt" id="nom-modal-title">Nominate Place</span>
+      <button class="mx" onclick="closeModal('ov-nominate')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">As a Verified Reviewer, select the awards you'd like to nominate this place for. You can pick multiple.</p>
+    <div class="nom-grid" id="nom-grid"></div>
+    <button class="submit-btn" onclick="submitNomination()">Save Nominations</button>
+    <p style="font-size:11px;color:var(--dim);text-align:center;margin-top:8px">Nominations are visible to all users immediately.</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ── CONSTANTS ──
+const CAT_COLORS = {food:'#4a9668',cafe:'#8b6f47',bar:'#7a4fa0',attraction:'#3a7bc8',shopping:'#b85070',other:'#5a7a8a'};
+const CAT_LABELS = {food:'Food',cafe:'Cafe',bar:'Bar',attraction:'Culture',shopping:'Shopping',other:'Other'};
+const COST_LABELS = {'0-10':'$0–$10','10-50':'$10–$50','50-100':'$50–$100','100+':'$100+'};
+const NOMINATION_OPTIONS = [
+  'Gracious Professionalism','Extremely Friendly','Hidden Gem',
+  'Best Value','Must Try','Local Favorite','Outstanding Service',
+  'Perfect Atmosphere','Top Presentation','Community Staple'
+];
+
+// ── AUTH ──
+function getAccounts(){
+  const defaults = {
+    admin:{ name:'Administrator', password:'atlas2024', role:'admin' },
+    guest:{ name:'Guest User',    password:'guest123',  role:'user'  }
+  };
+  return Object.assign({}, defaults, JSON.parse(localStorage.getItem('nyc_accounts')||'{}'));
+}
+function saveAccounts(accounts){
+  const out={};
+  for(const[u,d]of Object.entries(accounts)) if(u!=='admin'&&u!=='guest') out[u]=d;
+  localStorage.setItem('nyc_accounts',JSON.stringify(out));
+}
+
+let currentUser = null;
+let adminUnlocked = false;
+
+function switchLoginTab(tab, el){
+  document.querySelectorAll('.ltab').forEach(t=>{ t.style.background='transparent'; t.style.borderColor='#232d3f'; t.style.color='#7a8494'; });
+  el.style.background='#c8922a'; el.style.borderColor='#c8922a'; el.style.color='#0b0e14';
+  document.getElementById('lt-signin').style.display   = tab==='signin'   ? 'block':'none';
+  document.getElementById('lt-register').style.display = tab==='register' ? 'block':'none';
+}
+window.switchLoginTab=switchLoginTab;
+
+function doSignIn(){
+  const u=document.getElementById('li-user').value.trim().toLowerCase();
+  const p=document.getElementById('li-pass').value;
+  document.getElementById('li-err').textContent='';
+  if(!u||!p){ document.getElementById('li-err').textContent='Enter username and password.'; return; }
+  const acc=getAccounts()[u];
+  if(!acc||acc.password!==p){ document.getElementById('li-err').textContent='Incorrect username or password.'; return; }
+  loginSuccess(u,acc);
+}
+window.doSignIn=doSignIn;
+
+function doRegister(){
+  const name=document.getElementById('reg-name').value.trim();
+  const u=document.getElementById('reg-user').value.trim().toLowerCase().replace(/\s+/g,'');
+  const p=document.getElementById('reg-pass').value;
+  document.getElementById('reg-err').textContent='';
+  if(!name){ document.getElementById('reg-err').textContent='Enter your name.'; return; }
+  if(!u||u.length<3){ document.getElementById('reg-err').textContent='Username must be 3+ characters.'; return; }
+  if(!p||p.length<6){ document.getElementById('reg-err').textContent='Password must be 6+ characters.'; return; }
+  const accounts=getAccounts();
+  if(accounts[u]){ document.getElementById('reg-err').textContent='Username already taken.'; return; }
+  accounts[u]={name,password:p,role:'user'};
+  saveAccounts(accounts);
+  loginSuccess(u,accounts[u]);
+}
+window.doRegister=doRegister;
+
+function loginSuccess(username, acc){
+  currentUser={username,name:acc.name,role:acc.role};
+  adminUnlocked=acc.role==='admin';
+  const initials=acc.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const av=document.getElementById('user-avatar');
+  av.textContent=initials;
+  av.title=acc.name+' ('+acc.role+')';
+  av.style.background=acc.role==='admin'?'rgba(200,146,42,.2)':acc.role==='reviewer'?'rgba(42,138,138,.2)':'#1c2435';
+  av.style.color=acc.role==='admin'?'#c8922a':acc.role==='reviewer'?'#4ababa':'#7a8494';
+  document.getElementById('admin-add-btn').style.display=adminUnlocked?'block':'none';
+  document.getElementById('guest-hint').style.display=adminUnlocked?'none':'block';
+  // Show admin tab only to admins
+  document.getElementById('admin-tab-btn').style.display = adminUnlocked ? 'block' : 'none';
+  document.getElementById('login-screen').style.display='none';
+  map.invalidateSize();
+  renderList(); renderMarkers(); updateBadge();
+}
+
+function doLogout(){
+  currentUser=null; adminUnlocked=false;
+  document.getElementById('admin-lock').style.display='block';
+  document.getElementById('admin-panel').style.display='none';
+  document.getElementById('admin-tab-btn').style.display='none';
+  document.getElementById('li-user').value='';
+  document.getElementById('li-pass').value='';
+  document.getElementById('li-err').textContent='';
+  document.getElementById('login-screen').style.display='flex';
+  switchTab('map');
+}
+window.doLogout=doLogout;
+
+// ── DATA ──
+let approved = JSON.parse(localStorage.getItem('nyc_approved')||'[]');
+let pending   = JSON.parse(localStorage.getItem('nyc_pending')||'[]');
+let markers   = {};
+let editId=null, isSuggest=false, selCost=null, activeFilter='all';
+let reviewLocId=null, nomLocId=null;
+
+function persist(){ localStorage.setItem('nyc_approved',JSON.stringify(approved)); localStorage.setItem('nyc_pending',JSON.stringify(pending)); }
+
+// ── MAP ──
+const map=L.map('map',{center:[40.7489,-73.9680],zoom:13,zoomControl:false});
+L.control.zoom({position:'bottomright'}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap © CARTO',subdomains:'abcd',maxZoom:20}).addTo(map);
+window.addEventListener('load',()=>map.invalidateSize());
+document.getElementById('sidebar').addEventListener('transitionend',()=>map.invalidateSize());
+
+function mkIcon(cat){
+  const c=CAT_COLORS[cat]||'#5a7a8a';
+  return L.divIcon({className:'',html:`<div class="mk" style="background:${c}"><div class="mk-i"></div></div>`,iconSize:[30,30],iconAnchor:[15,30],popupAnchor:[0,-34]});
+}
+
+function avgRating(loc){
+  const pr=loc.publicRatings||[];
+  if(!pr.length) return null;
+  return (pr.reduce((a,r)=>a+r.rating,0)/pr.length).toFixed(1);
+}
+
+function renderMarkers(){
+  Object.values(markers).forEach(m=>map.removeLayer(m));
+  markers={};
+  approved.forEach(l=>{
+    if(!l.lat||!l.lng) return;
+    const avg=avgRating(l);
+    const noms=(l.nominations||[]);
+    const m=L.marker([l.lat,l.lng],{icon:mkIcon(l.cat)}).addTo(map);
+    m.bindPopup(`
+      <div class="pn">${l.name}</div>
+      <div class="pm">
+        <span class="badge ${l.cat}">${CAT_LABELS[l.cat]||l.cat}</span>
+        ${l.cost?`<span class="pc">${COST_LABELS[l.cost]||l.cost}</span>`:''}
+      </div>
+      ${l.rating?`<div class="star-display" style="margin-bottom:5px">${starsHTML(l.rating)}</div>`:''}
+      ${avg?`<div style="font-size:11px;color:var(--muted);margin-bottom:5px">Community: <span style="color:#e8aa48">${avg}★</span> <span style="color:var(--dim)">(${(l.publicRatings||[]).length} review${(l.publicRatings||[]).length!==1?'s':''})</span></div>`:''}
+      ${noms.length?`<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px">${noms.map(n=>`<span style="font-size:9px;background:rgba(200,146,42,.12);color:#c8922a;border:1px solid rgba(200,146,42,.25);border-radius:8px;padding:2px 6px">✦ ${n}</span>`).join('')}</div>`:''}
+      ${l.review?`<p class="pr">${l.review.length>120?l.review.slice(0,120)+'…':l.review}</p>`:''}
+      ${l.maps?`<a class="pl" href="${l.maps}" target="_blank">↗ Google Maps</a>`:''}
+      <br><small style="color:var(--dim);font-size:10px">Added by ${l.submitter||'Admin'}</small>
+    `,{maxWidth:270});
+    markers[l.id]=m;
+  });
+}
+
+function flyTo(id){
+  const l=approved.find(x=>x.id===id);
+  if(!l||!l.lat) return;
+  map.flyTo([l.lat,l.lng],16,{duration:.8});
+  if(markers[id]) setTimeout(()=>markers[id].openPopup(),880);
+  document.querySelectorAll('#loc-list .card').forEach(c=>c.classList.toggle('sel',c.dataset.id===id));
+}
+window.flyTo=flyTo;
+
+// ── TABS ──
+
+// ── STATS ──
+function renderStats(){
+  const CAT = CAT_LABELS;
+  const COST = COST_LABELS;
+
+  // ── Admin Recommended ──
+  const recommended = approved.filter(l=>l.adminRecommended);
+  const recEl = document.getElementById('stat-recommended');
+  if(!recommended.length){
+    recEl.innerHTML='<p style="font-size:12px;color:var(--dim);padding:4px 2px">No admin recommendations yet.</p>';
+  } else {
+    recEl.innerHTML = recommended.map(l=>{
+      const avg=avgRating(l);
+      return `<div class="stat-card" onclick="flyTo('${l.id}');switchTab('map')">
+        <span class="stat-rank">✦</span>
+        <div class="stat-info">
+          <div class="stat-name">${l.name}</div>
+          <div class="stat-meta"><span class="badge ${l.cat}" style="font-size:8.5px">${CAT[l.cat]||l.cat}</span>${avg?` &nbsp;★ ${avg}`:''}</div>
+        </div>
+        <span class="stat-val">${l.cost?COST[l.cost]:''}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Highest Rated (by community avg, min 1 review) ──
+  const rated = approved
+    .filter(l=>(l.publicRatings||[]).length>0)
+    .map(l=>({...l, avg: parseFloat(avgRating(l))}))
+    .sort((a,b)=>b.avg-a.avg || (b.publicRatings.length - a.publicRatings.length))
+    .slice(0,8);
+  const topEl = document.getElementById('stat-top-rated');
+  if(!rated.length){
+    topEl.innerHTML='<p style="font-size:12px;color:var(--dim);padding:4px 2px">No community reviews yet. Be the first to rate a place!</p>';
+  } else {
+    topEl.innerHTML = rated.map((l,i)=>`
+      <div class="stat-card" onclick="flyTo('${l.id}');switchTab('map')">
+        <span class="stat-rank" style="color:${i===0?'#e8aa48':i===1?'#a0a0a0':i===2?'#c8922a':'var(--dim)'}">${i+1}</span>
+        <div class="stat-info">
+          <div class="stat-name">${l.name}</div>
+          <div class="stat-meta"><span class="badge ${l.cat}" style="font-size:8.5px">${CAT[l.cat]||l.cat}</span> &nbsp; ${l.publicRatings.length} review${l.publicRatings.length!==1?'s':''}</div>
+        </div>
+        <span class="stat-val" style="color:#e8aa48">${l.avg.toFixed(1)}★</span>
+      </div>
+    `).join('');
+  }
+
+  // ── Newest Places (last 8 by id timestamp) ──
+  const newest = [...approved].sort((a,b)=>parseInt(b.id)-parseInt(a.id)).slice(0,8);
+  const newEl = document.getElementById('stat-newest');
+  if(!newest.length){
+    newEl.innerHTML='<p style="font-size:12px;color:var(--dim);padding:4px 2px">No places added yet.</p>';
+  } else {
+    newEl.innerHTML = newest.map(l=>`
+      <div class="stat-card" onclick="flyTo('${l.id}');switchTab('map')">
+        <div class="stat-info">
+          <div class="stat-name">${l.name}</div>
+          <div class="stat-meta"><span class="badge ${l.cat}" style="font-size:8.5px">${CAT[l.cat]||l.cat}</span>${l.address?` &nbsp;· ${l.address.split(',')[0]}`:''}</div>
+        </div>
+        <span class="stat-val">${l.cost?COST[l.cost]:''}</span>
+      </div>
+    `).join('');
+  }
+
+  // ── Nomination Awards ──
+  // Build a map: award name → array of places that have it
+  const awardMap = {};
+  NOMINATION_OPTIONS.forEach(n => { awardMap[n] = []; });
+  approved.forEach(l => {
+    (l.nominations||[]).forEach(n => {
+      if(awardMap[n]) awardMap[n].push(l);
+    });
+  });
+
+  const nomEl = document.getElementById('stat-nominations');
+  const awardsWithWinners = NOMINATION_OPTIONS.filter(n => awardMap[n].length > 0);
+
+  if(!awardsWithWinners.length){
+    nomEl.innerHTML='<p style="font-size:12px;color:var(--dim);padding:4px 2px">No nominations yet. Verified Reviewers can nominate places from the Map tab.</p>';
+  } else {
+    nomEl.innerHTML = awardsWithWinners.map(award => {
+      const winners = awardMap[award];
+      return `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--border);background:rgba(200,146,42,.05)">
+            <span style="font-size:13px;color:var(--accent)">✦</span>
+            <span style="font-family:'DM Serif Display',serif;font-size:13px;color:var(--text)">${award}</span>
+            <span style="margin-left:auto;font-size:10px;color:var(--dim);background:var(--panel2);border-radius:8px;padding:2px 7px">${winners.length} place${winners.length!==1?'s':''}</span>
+          </div>
+          ${winners.map(l => `
+            <div class="stat-card" style="border:none;border-bottom:1px solid var(--border);border-radius:0;margin:0" onclick="flyTo('${l.id}');switchTab('map')">
+              <div class="stat-info">
+                <div class="stat-name">${l.name}</div>
+                <div class="stat-meta">
+                  <span class="badge ${l.cat}" style="font-size:8.5px">${CAT[l.cat]||l.cat}</span>
+                  ${(l.publicRatings||[]).length ? ` &nbsp;★ ${avgRating(l)} (${l.publicRatings.length})` : ''}
+                </div>
+              </div>
+              <span class="stat-val">${l.cost?COST[l.cost]:''}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }).join('');
+  }
+}
+
+window.toggleRecommend=function(id){
+  const l=approved.find(x=>x.id===id);
+  if(!l) return;
+  l.adminRecommended=!l.adminRecommended;
+  persist(); renderList(); renderMarkers();
+};
+
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  document.getElementById('tab-map').style.display   = tab==='map'   ? 'flex'  : 'none';
+  document.getElementById('tab-stats').style.display = tab==='stats' ? 'flex'  : 'none';
+  document.getElementById('tab-stats').style.flexDirection = 'column';
+  const ad=document.getElementById('tab-admin');
+  ad.style.display=tab==='admin'?'flex':'none';
+  if(tab==='stats') renderStats();
+  if(tab==='admin'&&adminUnlocked){
+    document.getElementById('admin-lock').style.display='none';
+    const ap=document.getElementById('admin-panel');
+    ap.style.display='flex';ap.style.flexDirection='column';ap.style.flex='1';ap.style.overflow='hidden';
+    renderAdmin();
+  } else if(tab==='admin'&&!adminUnlocked){
+    document.getElementById('admin-lock').style.display='block';
+    document.getElementById('admin-panel').style.display='none';
+  }
+}
+window.switchTab=switchTab;
+
+function setFilter(c,el){
+  activeFilter=c;
+  document.querySelectorAll('.chip').forEach(ch=>ch.classList.remove('on'));
+  el.classList.add('on');
+  renderList();
+}
+window.setFilter=setFilter;
+
+// ── STAR HELPERS ──
+function starsHTML(n){
+  if(!n) return '';
+  return Array.from({length:5},(_,i)=>'<span class="'+(i<n?'s-on':'s-off')+'">★</span>').join('');
+}
+function getSelRating(name){
+  const c=document.querySelector('input[name="'+name+'"]:checked');
+  return c?parseInt(c.value):null;
+}
+function setRatingField(name,n){ document.querySelectorAll('input[name="'+name+'"]').forEach(r=>{r.checked=parseInt(r.value)===n;}); }
+function clearRatingField(name){ document.querySelectorAll('input[name="'+name+'"]').forEach(r=>{r.checked=false;}); }
+
+// ── RENDER LIST ──
+function renderList(){
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const list=document.getElementById('loc-list');
+  const filtered=approved.filter(l=>{
+    const mc=activeFilter==='all'||l.cat===activeFilter;
+    const mq=!q||l.name.toLowerCase().includes(q)||(l.address||'').toLowerCase().includes(q)||(l.review||'').toLowerCase().includes(q);
+    return mc&&mq;
+  });
+  if(!filtered.length){
+    list.innerHTML=`<div class="empty"><div class="empty-title">${approved.length?'No matches':'No places yet'}</div>${approved.length?'Try a different search.':'Add or suggest the first spot!'}</div>`;
+    return;
+  }
+  const isReviewer=currentUser&&(currentUser.role==='reviewer'||currentUser.role==='admin');
+  const userReviewed=(locId)=>currentUser&&(approved.find(l=>l.id===locId)?.publicRatings||[]).some(r=>r.userId===currentUser.username);
+
+  list.innerHTML=filtered.map(l=>{
+    const avg=avgRating(l);
+    const pr=l.publicRatings||[];
+    const noms=l.nominations||[];
+    const alreadyReviewed=userReviewed(l.id);
+    return `
+    <div class="card" data-c="${l.cat}" data-id="${l.id}" onclick="flyTo('${l.id}')">
+      <div class="ct"><span class="cn">${l.name}</span><span class="cc">${l.cost?COST_LABELS[l.cost]:''}</span></div>
+      <div class="cm">
+        <span class="badge ${l.cat}">${CAT_LABELS[l.cat]||l.cat}</span>
+        ${l.address?`<span style="font-size:10.5px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px">${l.address}</span>`:''}
+      </div>
+      ${l.rating?`<div class="star-display" style="margin-top:2px">${starsHTML(l.rating)}</div>`:''}
+      ${avg?`<div class="pub-rating"><span class="pub-stars">★</span><span>${avg}</span><span style="color:var(--dim)">(${pr.length} public ${pr.length===1?'review':'reviews'})</span></div>`:''}
+      ${noms.length?`<div class="nom-list">${noms.map(n=>`<span class="badge nom">✦ ${n}</span>`).join('')}</div>`:''}
+      ${l.review?`<p class="cr">${l.review}</p>`:''}
+      <div class="ca" onclick="event.stopPropagation()">
+        ${l.maps?`<a class="cbtn" href="${l.maps}" target="_blank">↗ Maps</a>`:''}
+        <button class="cbtn" onclick="openReviewModal('${l.id}')">${alreadyReviewed?'✎ My Review':'★ Review'}</button>
+        ${isReviewer?`<button class="cbtn rev" onclick="openNominateModal('${l.id}')">✦ Nominate</button>`:''}
+        ${adminUnlocked?`<button class="cbtn" onclick="openEdit('${l.id}')">Edit</button>`:''}
+        ${adminUnlocked?`<button class="cbtn del" onclick="delApproved('${l.id}')">Delete</button>`:''}
+        ${adminUnlocked?`<button class="cbtn" style="${l.adminRecommended?'border-color:var(--accent);color:var(--accent)':''}" onclick="toggleRecommend('${l.id}')">${l.adminRecommended?'✦ Recommended':'✦ Recommend'}</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── ADMIN ──
+function updateBadge(){
+  const b=document.getElementById('pb');
+  b.textContent=pending.length;
+  b.style.display=pending.length?'inline-block':'none';
+  const sc=document.getElementById('sub-count');
+  if(sc){sc.textContent=pending.length;sc.style.display=pending.length?'inline':'none';}
+}
+
+function switchAdminTab(tab,el){
+  document.querySelectorAll('.atab').forEach(t=>{t.style.background='transparent';t.style.borderColor='var(--border)';t.style.color='var(--muted)';});
+  el.style.background='var(--accent)';el.style.borderColor='var(--accent)';el.style.color='#0b0e14';
+  document.getElementById('admin-submissions').style.display=tab==='submissions'?'block':'none';
+  document.getElementById('admin-users').style.display=tab==='users'?'block':'none';
+  if(tab==='users') renderUsers();
+}
+window.switchAdminTab=switchAdminTab;
+
+function renderAdmin(){
+  const list=document.getElementById('admin-list');
+  if(!pending.length){ list.innerHTML='<div class="empty"><div class="empty-title">All clear!</div>No pending submissions.</div>'; return; }
+  list.innerHTML=pending.map(l=>`
+    <div class="card" data-c="pending">
+      <div class="ct"><span class="cn">${l.name}</span><span class="cc">${l.cost?COST_LABELS[l.cost]:''}</span></div>
+      <div class="cm"><span class="badge pending">Pending</span><span class="badge ${l.cat}">${CAT_LABELS[l.cat]||l.cat}</span></div>
+      ${l.submitter?`<p class="submitter">Submitted by: <strong>${l.submitter}</strong></p>`:''}
+      ${l.address?`<p class="submitter">📍 ${l.address}</p>`:''}
+      ${l.rating?`<div class="star-display" style="margin-top:3px">${starsHTML(l.rating)}</div>`:''}
+      ${l.review?`<p class="cr" style="-webkit-line-clamp:3">${l.review}</p>`:''}
+      ${l.notes?`<p class="cr" style="font-style:italic">${l.notes}</p>`:''}
+      ${l.maps?`<p class="submitter"><a href="${l.maps}" target="_blank" style="color:var(--accent)">View on Google Maps ↗</a></p>`:''}
+      <div class="ca" style="margin-top:10px">
+        <button class="cbtn ok" onclick="approveLocation('${l.id}')">✓ Approve</button>
+        <button class="cbtn del" onclick="rejectLocation('${l.id}')">✕ Reject</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderUsers(){
+  const list=document.getElementById('user-list');
+  const accounts=getAccounts();
+  const users=Object.entries(accounts);
+  if(!users.length){ list.innerHTML='<div class="empty"><div class="empty-title">No users</div></div>'; return; }
+
+  const ROLE_ORDER=['user','reviewer','admin'];
+  const ROLE_LABEL={user:'Viewer',reviewer:'Verified Reviewer',admin:'Admin'};
+  const ROLE_COLOR={user:'var(--muted)',reviewer:'#4ababa',admin:'var(--accent)'};
+
+  list.innerHTML=users.map(([username,acc])=>{
+    const isMe=currentUser&&currentUser.username===username;
+    const isSuperAdmin=username==='admin';
+    const role=acc.role||'user';
+    const initials=acc.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const ri=ROLE_ORDER.indexOf(role);
+    const canPromote=!isSuperAdmin&&!isMe&&ri<ROLE_ORDER.length-1;
+    const canDemote=!isSuperAdmin&&!isMe&&ri>0;
+    return `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:7px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:34px;height:34px;border-radius:50%;background:${role==='admin'?'rgba(200,146,42,.15)':role==='reviewer'?'rgba(42,138,138,.15)':'var(--panel2)'};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:${ROLE_COLOR[role]};flex-shrink:0">${initials}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+            <span style="font-family:'DM Serif Display',serif;font-size:13px">${acc.name}</span>
+            ${isMe?`<span style="font-size:9px;background:rgba(200,146,42,.15);color:var(--accent);border-radius:8px;padding:1px 6px">You</span>`:''}
+            ${isSuperAdmin?`<span style="font-size:9px;background:rgba(200,146,42,.15);color:var(--accent);border-radius:8px;padding:1px 6px">Super Admin</span>`:''}
+          </div>
+          <div style="font-size:10.5px;margin-top:2px">
+            <span style="color:var(--dim)">@${username}</span>
+            &nbsp;·&nbsp;
+            <span style="color:${ROLE_COLOR[role]};font-weight:500">${ROLE_LABEL[role]}</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">
+          ${canPromote?`<button onclick="changeRole('${username}','promote')" style="font-size:10px;padding:4px 9px;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--success);font-family:'DM Sans',sans-serif;transition:all .15s;white-space:nowrap" onmouseover="this.style.borderColor='var(--success)'" onmouseout="this.style.borderColor='var(--border)'">↑ Promote</button>`:''}
+          ${canDemote?`<button onclick="changeRole('${username}','demote')" style="font-size:10px;padding:4px 9px;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:transparent;color:#e8954a;font-family:'DM Sans',sans-serif;transition:all .15s;white-space:nowrap" onmouseover="this.style.borderColor='#e8954a'" onmouseout="this.style.borderColor='var(--border)'">↓ Demote</button>`:''}
+          ${!isMe&&!isSuperAdmin?`<button onclick="deleteUser('${username}')" style="font-size:10px;padding:4px 9px;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;transition:all .15s" onmouseover="this.style.borderColor='var(--danger)';this.style.color='var(--danger)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">✕ Remove</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.changeRole=function(username,dir){
+  const accounts=getAccounts();
+  if(!accounts[username]||username==='admin') return;
+  const ROLES=['user','reviewer','admin'];
+  const cur=ROLES.indexOf(accounts[username].role||'user');
+  const next=dir==='promote'?cur+1:cur-1;
+  if(next<0||next>=ROLES.length) return;
+  const ROLE_LABEL={user:'Viewer',reviewer:'Verified Reviewer',admin:'Admin'};
+  accounts[username].role=ROLES[next];
+  saveAccounts(accounts);
+  renderUsers();
+};
+
+window.deleteUser=function(username){
+  if(username==='admin'||username==='guest') return;
+  if(!confirm('Remove @'+username+'?')) return;
+  const accounts=getAccounts();
+  delete accounts[username];
+  saveAccounts(accounts);
+  renderUsers();
+};
+
+window.approveLocation=function(id){
+  const idx=pending.findIndex(l=>l.id===id);
+  if(idx===-1) return;
+  const loc={...pending[idx]};
+  pending.splice(idx,1);
+  approved.push(loc);
+  persist(); updateBadge(); renderAdmin(); renderList(); renderMarkers();
+  if(loc.lat) setTimeout(()=>{map.flyTo([loc.lat,loc.lng],15);setTimeout(()=>markers[loc.id]?.openPopup(),750);},200);
+};
+window.rejectLocation=function(id){
+  if(!confirm('Reject this submission?')) return;
+  pending=pending.filter(l=>l.id!==id);
+  persist(); updateBadge(); renderAdmin();
+};
+window.delApproved=function(id){
+  if(!confirm('Remove this location?')) return;
+  approved=approved.filter(l=>l.id!==id);
+  persist(); renderList(); renderMarkers();
+};
+window.openEdit=function(id){ openModal('edit',id); };
+
+// ── PUBLIC REVIEWS ──
+function openReviewModal(locId){
+  reviewLocId=locId;
+  const loc=approved.find(l=>l.id===locId);
+  if(!loc) return;
+  document.getElementById('review-modal-title').textContent='Review: '+loc.name;
+  clearRatingField('pub-rating');
+  document.getElementById('pub-review-text').value='';
+  const existing=(loc.publicRatings||[]).find(r=>r.userId===currentUser.username);
+  const note=document.getElementById('existing-review-note');
+  if(existing){
+    setRatingField('pub-rating',existing.rating);
+    document.getElementById('pub-review-text').value=existing.text||'';
+    note.style.display='block';
+  } else {
+    note.style.display='none';
+  }
+  document.getElementById('ov-review').classList.add('open');
+}
+window.openReviewModal=openReviewModal;
+
+function submitPublicReview(){
+  const rating=getSelRating('pub-rating');
+  if(!rating){ alert('Please select a star rating.'); return; }
+  const text=document.getElementById('pub-review-text').value.trim();
+  const loc=approved.find(l=>l.id===reviewLocId);
+  if(!loc) return;
+  if(!loc.publicRatings) loc.publicRatings=[];
+  const existing=loc.publicRatings.findIndex(r=>r.userId===currentUser.username);
+  const review={userId:currentUser.username,name:currentUser.name,rating,text,date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})};
+  if(existing>=0) loc.publicRatings[existing]=review;
+  else loc.publicRatings.push(review);
+  persist(); renderList(); renderMarkers();
+  closeModal('ov-review');
+}
+window.submitPublicReview=submitPublicReview;
+
+// ── NOMINATIONS ──
+function openNominateModal(locId){
+  nomLocId=locId;
+  const loc=approved.find(l=>l.id===locId);
+  if(!loc) return;
+  document.getElementById('nom-modal-title').textContent='Nominate: '+loc.name;
+  const current=loc.nominations||[];
+  document.getElementById('nom-grid').innerHTML=NOMINATION_OPTIONS.map(n=>{
+    const checked=current.includes(n);
+    return `<div class="nom-option${checked?' checked':''}" onclick="toggleNomOption(this,'${n.replace(/'/g,"\\'")}')">
+      <div class="nom-tick">${checked?'✓':''}</div>
+      <span class="nom-option-label">${n}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('ov-nominate').classList.add('open');
+}
+window.openNominateModal=openNominateModal;
+
+window.toggleNomOption=function(el,name){
+  el.classList.toggle('checked');
+  const tick=el.querySelector('.nom-tick');
+  tick.textContent=el.classList.contains('checked')?'✓':'';
+};
+
+function submitNomination(){
+  const loc=approved.find(l=>l.id===nomLocId);
+  if(!loc) return;
+  const selected=Array.from(document.querySelectorAll('#nom-grid .nom-option.checked')).map(el=>el.querySelector('.nom-option-label').textContent);
+  loc.nominations=selected;
+  persist(); renderList(); renderMarkers();
+  closeModal('ov-nominate');
+}
+window.submitNomination=submitNomination;
+
+// ── ADD/EDIT MODAL ──
+function openModal(mode,id){
+  editId=mode==='edit'?id:null;
+  isSuggest=mode==='suggest';
+  selCost=null;
+  document.querySelectorAll('.cost-btn').forEach(b=>b.classList.remove('on'));
+  const titles={add:'Add Location',suggest:'Suggest a Place',edit:'Edit Location'};
+  document.getElementById('modal-title').textContent=titles[mode];
+  document.getElementById('suggest-notice').style.display=isSuggest?'block':'none';
+  document.getElementById('save-btn').textContent=isSuggest?'Submit for Review':mode==='edit'?'Save Changes':'Save Location';
+  document.getElementById('form-footer').textContent=isSuggest?'Suggestions are reviewed before going live.':mode==='edit'?'Editing an approved listing.':'';
+  document.getElementById('submitter-wrap').style.display=isSuggest?'flex':'none';
+  if(isSuggest&&currentUser) document.getElementById('f-submitter').value=currentUser.name;
+  if(mode==='edit'){
+    const l=approved.find(x=>x.id===id);
+    if(!l) return;
+    document.getElementById('f-submitter').value=l.submitter||'';
+    document.getElementById('f-name').value=l.name;
+    document.getElementById('f-cat').value=l.cat;
+    document.getElementById('f-address').value=l.address||'';
+    document.getElementById('f-maps').value=l.maps||'';
+    document.getElementById('f-review').value=l.review||'';
+    document.getElementById('f-notes').value=l.notes||'';
+    selCost=l.cost||null;
+    if(selCost) document.querySelector('.cost-btn[data-cost="'+selCost+'"]')?.classList.add('on');
+    l.rating?setRatingField('rating',l.rating):clearRatingField('rating');
+  } else {
+    ['f-submitter','f-name','f-address','f-maps','f-review','f-notes'].forEach(fid=>document.getElementById(fid).value='');
+    document.getElementById('f-cat').value='food';
+    clearRatingField('rating');
+  }
+  document.getElementById('ov1').classList.add('open');
+}
+window.openModal=openModal;
+
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+window.closeModal=closeModal;
+
+document.getElementById('ov1').addEventListener('click',e=>{if(e.target===document.getElementById('ov1'))closeModal('ov1');});
+document.getElementById('ov-review').addEventListener('click',e=>{if(e.target===document.getElementById('ov-review'))closeModal('ov-review');});
+document.getElementById('ov-nominate').addEventListener('click',e=>{if(e.target===document.getElementById('ov-nominate'))closeModal('ov-nominate');});
+
+document.querySelectorAll('.cost-btn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    const was=b.classList.contains('on');
+    document.querySelectorAll('.cost-btn').forEach(x=>x.classList.remove('on'));
+    if(!was){b.classList.add('on');selCost=b.dataset.cost;}else selCost=null;
+  });
+});
+
+// ── SAVE LOCATION ──
+async function saveLocation(){
+  const name=document.getElementById('f-name').value.trim();
+  if(!name){document.getElementById('f-name').focus();return;}
+  const btn=document.getElementById('save-btn');
+  btn.disabled=true;btn.textContent='Saving…';
+  const address=document.getElementById('f-address').value.trim();
+  const submitter=document.getElementById('f-submitter').value.trim()||(isSuggest?'Anonymous':'Admin');
+  let lat=null,lng=null;
+  if(editId){const ex=approved.find(l=>l.id===editId);if(ex){lat=ex.lat;lng=ex.lng;}}
+  if(address&&!lat){
+    try{
+      const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address+', New York')}&limit=1`,{headers:{'Accept-Language':'en','User-Agent':'NYCAtlas/1.0'}});
+      const d=await r.json();
+      if(d.length){lat=parseFloat(d[0].lat);lng=parseFloat(d[0].lon);}
+    }catch(e){}
+  }
+  if(!lat){lat=40.7489;lng=-73.9680;}
+  const rating=getSelRating('rating');
+  const existing=editId?approved.find(l=>l.id===editId):null;
+  const loc={
+    id:editId||Date.now().toString(),name,submitter,
+    cat:document.getElementById('f-cat').value,
+    address,maps:document.getElementById('f-maps').value.trim(),
+    review:document.getElementById('f-review').value.trim(),
+    notes:document.getElementById('f-notes').value.trim(),
+    cost:selCost,rating,lat,lng,
+    publicRatings:existing?.publicRatings||[],
+    nominations:existing?.nominations||[]
+  };
+  if(isSuggest){pending.push(loc);}
+  else if(editId){approved=approved.map(l=>l.id===editId?loc:l);}
+  else{approved.push(loc);}
+  persist();updateBadge();renderList();renderMarkers();
+  if(adminUnlocked)renderAdmin();
+  closeModal('ov1');
+  btn.disabled=false;
+  btn.textContent=isSuggest?'Submit for Review':'Save Location';
+  if(isSuggest){alert('Thank you! Your suggestion has been submitted for admin review.');}
+  else if(lat){setTimeout(()=>{map.flyTo([lat,lng],15,{duration:.8});setTimeout(()=>markers[loc.id]?.openPopup(),880);},200);}
+}
+window.saveLocation=saveLocation;
+
+// ── INIT ──
+document.querySelector('.ltab[data-lt="signin"]').style.background='#c8922a';
+document.querySelector('.ltab[data-lt="signin"]').style.borderColor='#c8922a';
+document.querySelector('.ltab[data-lt="signin"]').style.color='#0b0e14';
+</script>
+</body>
+</html>
