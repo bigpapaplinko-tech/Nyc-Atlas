@@ -766,7 +766,15 @@ window.toggleRecommend=function(id){
   l.adminRecommended=!l.adminRecommended;
   persist(); renderList(); renderMarkers();
 };
+<div style="padding: 20px; border: 1px solid #ccc; margin: 10px;">
+  <h3>Community Board</h3>
+  <input type="text" id="username" placeholder="Your Name">
+  <input type="text" id="message" placeholder="Say something...">
+  <button onclick="publishPost()">Post to Atlas</button>
 
+  <div id="posts-display" style="margin-top: 20px;">
+    </div>
+</div>
 function switchTab(tab){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
   document.getElementById('tab-map').style.display   = tab==='map'   ? 'flex'  : 'none';
@@ -1145,6 +1153,53 @@ window.saveLocation=saveLocation;
 document.querySelector('.ltab[data-lt="signin"]').style.background='#c8922a';
 document.querySelector('.ltab[data-lt="signin"]').style.borderColor='#c8922a';
 document.querySelector('.ltab[data-lt="signin"]').style.color='#0b0e14';
+</script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
+<script>
+  // Your unique Firebase config
+  const firebaseConfig = {
+    apiKey: "AIzaSyCXWDdxTFzTx0rtmPNiRyGgYtzQKby3o0E",
+    authDomain: "nyc-atlas-b012f.firebaseapp.com",
+    projectId: "nyc-atlas-b012f",
+    storageBucket: "nyc-atlas-b012f.firebasestorage.app",
+    messagingSenderId: "44293881989",
+    appId: "1:44293881989:web:e396ed067e36af140b29ec",
+    measurementId: "G-1VBX9GXBDH"
+  };
+
+  // Start Firebase
+  firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
+
+  // This is a test to see if it's working
+  console.log("Database is connected!");
+  // Function to send a post to the cloud
+  window.publishPost = function() {
+    const name = document.getElementById('username').value;
+    const msg = document.getElementById('message').value;
+
+    if(name && msg) {
+      database.ref('posts').push({
+        username: name,
+        text: msg,
+        timestamp: Date.now()
+      });
+      document.getElementById('message').value = ''; // Clear input
+    }
+  };
+
+  // Function to listen for new posts and show them
+  database.ref('posts').on('value', (snapshot) => {
+    const display = document.getElementById('posts-display');
+    display.innerHTML = ''; // Clear the old list
+    
+    snapshot.forEach((childSnapshot) => {
+      const post = childSnapshot.val();
+      display.innerHTML += `<p><strong>${post.username}:</strong> ${post.text}</p>`;
+    });
+  });
 </script>
 </body>
 </html>
